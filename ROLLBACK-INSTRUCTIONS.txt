@@ -1,0 +1,62 @@
+====================================================
+UTU Management v1.0.4 — Rollback Instructions
+====================================================
+
+Production path:
+/home/u860188292/domains/utuiq.com/public_html/syn
+
+----------------------------------------------------
+IF THE MIGRATION HAS NOT BEEN RUN YET
+----------------------------------------------------
+
+  cd /home/u860188292/domains/utuiq.com/public_html/syn
+  rm -rf app resources routes composer.json public/build
+  cp -r /home/u860188292/backups/utu-v104-backup-YYYYMMDD/app .
+  cp -r /home/u860188292/backups/utu-v104-backup-YYYYMMDD/resources .
+  cp -r /home/u860188292/backups/utu-v104-backup-YYYYMMDD/routes .
+  cp /home/u860188292/backups/utu-v104-backup-YYYYMMDD/composer.json .
+  cp -r /home/u860188292/backups/utu-v104-backup-YYYYMMDD/build public/build
+  rm -f database/migrations/2026_08_14_000001_add_settlement_discount_to_payments_table.php
+
+  php artisan optimize:clear
+  composer dump-autoload -o
+  php artisan config:cache && php artisan route:cache && php artisan view:cache
+
+Note: this restores app/, resources/, and routes/ WHOLESALE from the
+Step 1 backup — since this release touched 52 files across many
+directories, a full-directory restore is simpler and safer than
+reversing individual files one at a time.
+
+----------------------------------------------------
+IF THE MIGRATION HAS ALREADY BEEN RUN
+----------------------------------------------------
+
+The migration is additive-only (widens an enum by two values). Safest
+option: restore the files above and leave the two new enum values in
+place — harmless with the old code running again.
+
+If the schema must be reverted too:
+
+  php artisan migrate:rollback --step=1 --force
+
+The migration's down() converts any 'settlement'/'discount' rows to
+'other' first (preserving the row and amount) before narrowing the
+enum — safe even if the new methods were already used.
+
+----------------------------------------------------
+VERIFY AFTER ROLLBACK
+----------------------------------------------------
+
+  - Area/Sales Rep reports return to showing one summary row per
+    customer (no expand/collapse, no per-customer statement).
+  - Collections list has no Edit button.
+  - Dashboard no longer shows Cash on Hand / Monthly Expenses.
+  - Everything else (invoices, sales returns, users, inventory,
+    authentication) is unaffected.
+
+----------------------------------------------------
+DO NOT
+----------------------------------------------------
+
+Do not run migrate:fresh, db:wipe, or any destructive database command
+as part of this rollback.

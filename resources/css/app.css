@@ -1,0 +1,63 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    html {
+        @apply antialiased;
+    }
+
+    html, body {
+        @apply overflow-x-hidden;
+        max-width: 100vw;
+    }
+
+    html[dir='rtl'] body {
+        @apply font-arabic;
+    }
+
+    html[dir='ltr'] body {
+        @apply font-sans;
+    }
+
+    body {
+        @apply bg-grey-1 text-ink text-sm leading-relaxed;
+    }
+}
+
+@layer components {
+    /* Shared building blocks so every future screen (not just the invoice)
+       inherits the same premium, minimal look from the original prototype. */
+
+    .utu-btn {
+        @apply inline-flex items-center justify-center gap-2 rounded-utu border px-4 py-2
+               text-[12.5px] font-semibold tracking-wide transition-colors whitespace-nowrap;
+    }
+
+    .utu-btn-gold {
+        @apply utu-btn bg-gold border-gold text-ink hover:bg-gold-hover hover:border-gold-hover;
+    }
+
+    .utu-btn-dark {
+        @apply utu-btn bg-ink border-ink text-white hover:bg-black;
+    }
+
+    .utu-btn-ghost {
+        @apply utu-btn bg-white border-grey-3 text-ink hover:border-ink;
+    }
+
+    .utu-input {
+        @apply w-full rounded-utu border border-grey-3 bg-white px-3 py-2 text-sm text-ink
+               placeholder:text-grey-text focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink;
+    }
+
+    .utu-label {
+        @apply mb-1.5 block text-[12.5px] font-semibold text-grey-text;
+    }
+
+    .utu-card {
+        @apply rounded-utu border border-grey-2 bg-white p-5;
+    }
+}

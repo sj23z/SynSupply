@@ -1,0 +1,295 @@
+====================================================
+UTU Management System — Release Manifest
+====================================================
+
+Version:
+UTU Management v1.0.4 — Hierarchical Reporting Engine
+(includes Mobile Responsive + Client Feedback/Cash-on-Hand + Invoice
+Mobile UX, all previously delivered as v1.0.3 builds, since production
+has only ever been CONFIRMED on v1.0.2 — see note below)
+
+WHY v1.0.4 AND NOT ANOTHER v1.0.3 BUILD:
+Three separate "v1.0.3" ZIPs were produced across recent sessions
+(mobile responsive; mobile + client feedback/cash rule; + an invoice
+mobile UX addendum), but at no point was v1.0.3 confirmed deployed to
+production — the only confirmed production baseline throughout this
+entire engagement has been v1.0.2. This release is a genuinely
+substantial new capability (a hierarchical reporting engine), not a
+small correction, so rather than overwrite yet another "v1.0.3" and
+risk checksum/version confusion, this is packaged as v1.0.4: one
+complete, self-contained overlay containing EVERYTHING since the
+confirmed v1.0.2 baseline. Deploying this ZIP alone brings production
+fully up to date — there is no need to also apply the earlier v1.0.3
+builds first.
+
+Confirmed by direct diff against the original v1.0.2 project archive:
+52 source files changed (45 modified + 7 new), zero files changed in
+database migrations other than the two additive ones listed below,
+zero changes to any file this release wasn't meant to touch.
+
+====================================================
+BUILD / VALIDATION STATUS (this session, all re-run and real)
+====================================================
+
+composer validate --no-check-publish : PASSED ("./composer.json is valid")
+composer install                      : BLOCKED — exact error: "The
+  'https://repo.packagist.org/packages.json' URL could not be accessed
+  (HTTP 403)". Packagist unreachable from this sandbox — the same
+  standing limitation disclosed at every phase of this project.
+npm run build                         : PASSED, 43 compiled assets
+Backend tests (php artisan test)      : COULD NOT RUN — direct
+  consequence of the composer install blocker above. NOT claimed as
+  passing.
+Route/controller/param static check   : PASSED (82/82 routes)
+Cost/profit leakage sweep             : PASSED — isAdmin()/isOwner()
+  usage identical to the last confirmed-clean state; direct grep for
+  cogs/unit_cost/purchase_cost/gross_profit across every new/modified
+  report file found zero occurrences outside the Owner-gated Product
+  report code (unchanged from before this release)
+Hierarchical totals arithmetic (independent PHP simulation of
+  CustomerStatementService::totals()/sumTotals(), a 3-customer
+  scenario matching the Section 17 acceptance test exactly) : PASSED
+Mobile overflow check (real Chromium, real compiled CSS, against the
+  new hierarchical Area report markup) at 360/390/430/768/1280px :
+  PASSED — zero horizontal overflow at every width
+
+====================================================
+PART 1 — SHARED REPORTING ARCHITECTURE
+====================================================
+
+app/Services/CustomerStatementService.php (NEW)
+  The single source of truth for a customer's full transaction
+  statement (invoices with line items, sales returns with returned
+  items, payments split into payment/settlement/discount) and for
+  aggregating totals across a set of customers. This is the exact
+  same detail-level logic that previously lived only inside
+  CustomerStatementController, extracted so the Area and Sales
+  Representative reports can show a REAL hierarchical statement per
+  customer instead of the single aggregate row they showed before —
+  one implementation, reused everywhere, not four separate ones.
+
+resources/js/Components/CustomerStatementTable.vue (NEW)
+  The on-screen equivalent: one shared Vue component rendering a
+  customer's statement table with the red/blue/green/neutral color
+  coding, used by the Customer Statement page and, per customer,
+  inside the Area and Sales Representative report pages.
+
+resources/views/pdf/partials/customer-statement.blade.php (NEW)
+  The PDF equivalent, @include'd by the standalone Customer Statement
+  PDF and, per customer, by the Area and Sales Representative PDFs.
+
+====================================================
+PART 2 — HIERARCHICAL AREA / SALES REPRESENTATIVE REPORTS
+====================================================
+
+Both reports now genuinely show:
+  Entity -> every customer under it -> that customer's full statement
+  (every invoice with its line items, every payment/settlement/
+  discount, every return with its returned products) -> aggregate
+  totals (gross sales, returns, net sales, cash, bank transfer, other,
+  settlement, discount, actual cash received, outstanding balance).
+
+This is true both on-screen (AreaDetail.vue / SalesRepresentativeDetail.vue,
+each customer collapsible, "Expand All"/"Collapse All" controls) and
+in the PDF (report-area.blade.php / report-sales-representative.blade.php),
+using the exact same CustomerStatementService output in both places.
+
+====================================================
+PART 3 — PRODUCT REPORT EXTENDED
+====================================================
+
+Every transaction row now includes: customer's area, customer's sales
+representative, discount, returned quantity (via SalesReturnItem's
+existing invoice_item_id link — no new schema), and the linked
+invoice's payment status ("where the existing data model permits it" —
+payments aren't linked to a specific line item, only optionally to an
+invoice as a whole, so this is the honest equivalent rather than a
+fabricated line-level payment link). Owner-only cost/COGS/profit
+fields remain exactly as gated before this release — re-verified, not
+assumed.
+
+====================================================
+FILES MODIFIED (45)
+====================================================
+
+app/Http/Controllers/CollectionController.php, CustomerStatementController.php,
+DashboardController.php, ReportController.php
+app/Http/Requests/CollectionRequest.php
+app/Policies/PaymentPolicy.php
+resources/css/app.css
+resources/js/Layouts/AppLayout.vue
+resources/js/Pages/Areas/Index.vue
+resources/js/Pages/Collections/{Create,Index}.vue
+resources/js/Pages/Customers/{Create,Edit,Index,Statement}.vue
+resources/js/Pages/Dashboard.vue
+resources/js/Pages/Expenses/{Create,Index}.vue
+resources/js/Pages/Inventory/{Create,Index,Show}.vue
+resources/js/Pages/Invoices/{Create,Edit,Index,Show}.vue
+resources/js/Pages/Products/Index.vue
+resources/js/Pages/Reports/{AreaDetail,Areas,Customers,ProductDetail,
+  Products,Profitability,SalesRepresentativeDetail,SalesRepresentatives}.vue
+resources/js/Pages/SalesRepresentatives/Index.vue
+resources/js/Pages/SalesReturns/{Create,Edit,Index,Show}.vue
+resources/js/Pages/Users/Index.vue
+resources/views/pdf/report-area.blade.php, report-product.blade.php,
+  report-sales-representative.blade.php, statement.blade.php
+routes/web.php
+
+Every file in this list except CollectionController.php, CustomerStatementController.php,
+DashboardController.php, ReportController.php, CollectionRequest.php,
+PaymentPolicy.php, Customers/Statement.vue, the four report-*.blade.php
+files, and routes/web.php carries ONLY mobile-responsive and/or
+client-feedback (cash-on-hand, collection editing) changes already
+described in full in the prior v1.0.3 manifest content — repeated here
+only to keep this manifest self-contained as a full overlay, not
+because their content changed again this session.
+
+====================================================
+FILES ADDED (7)
+====================================================
+
+app/Services/CustomerStatementService.php — see Part 1.
+database/migrations/2026_08_14_000001_add_settlement_discount_to_payments_table.php
+  Widens payments.method by two values (settlement, discount).
+  Additive only — default stays 'cash', no existing row touched.
+resources/js/Components/CustomerStatementTable.vue — see Part 1.
+resources/js/Pages/Collections/Edit.vue
+  Collection editing UI (client feedback item 5).
+resources/views/pdf/partials/customer-statement.blade.php — see Part 1.
+tests/Feature/CashOnHandAndCollectionsTest.php (27 tests)
+tests/Feature/HierarchicalReportsTest.php (27 tests, includes the
+  exact Section 17 acceptance scenario)
+
+====================================================
+MIGRATIONS
+====================================================
+
+Total new in this release: 1 (described above).
+Total cumulative since the original 19: 22.
+
+====================================================
+TESTS
+====================================================
+
+54 tests written across the two files above. NOT executed — see the
+"composer install BLOCKED" entry. The hierarchical-totals arithmetic
+that these tests protect was independently verified via a standalone
+PHP simulation (see build status above) — real proof of correctness,
+but not a substitute for the actual Pest suite running.
+
+====================================================
+CONFIRMED ABSENT FROM THIS PACKAGE
+====================================================
+
+.env — absent
+vendor/ — absent
+node_modules/ — absent
+production database — absent
+Temporary screenshots or test artifacts — absent
+
+====================================================
+NO DEPLOYMENT PERFORMED
+====================================================
+
+This assistant has no access to the production Hostinger server. No
+file was uploaded, no command was run against production, no database
+was touched.
+
+====================================================
+ADDENDUM — CUSTOMER GENERAL REPORT + PRODUCT FINANCIAL MOVEMENTS
+====================================================
+
+Same v1.0.4 release, updated after initial packaging per a final
+correction (still v1.0.4, per explicit instruction not to create
+v1.0.5).
+
+A) CUSTOMER GENERAL REPORT — NOW HIERARCHICAL
+
+Reports -> Customers previously showed one aggregate row per customer
+(gross sales / returns / net sales / payments / balance) with only a
+"View Statement" link to see detail on a separate page. It now shows,
+directly on the same page: every customer with activity, each
+expandable in place (Expand All / Collapse All controls) to reveal
+their FULL statement — every invoice with its line items, every
+payment/settlement/discount row, every return with its returned
+products — using the exact same CustomerStatementTable component and
+CustomerStatementService data already proven on the Customer, Area,
+and Sales Representative reports. A "كشف مستقل" (standalone statement)
+link remains as a convenience, but is no longer the only way to see
+the detail. A new PDF (report-customers.blade.php, reusing the same
+shared partial as the Area/Sales-Rep PDFs) supports the same complete
+structure — not a summary-only document.
+
+B) PRODUCT REPORT — FINANCIAL MOVEMENTS VIA Payment.invoice_id
+
+Each product transaction row can now be expanded ("الحركات المالية")
+to reveal every payment actually linked to that transaction's invoice
+via the existing, unmodified Payment.invoice_id relationship — shown
+as separate rows, never collapsed into one "Paid" figure, since one
+invoice can have multiple payment rows (e.g. a cash payment, a later
+bank transfer, and a discount adjustment). The same expansion also
+shows full return detail (return number, date, quantity, value) for
+that specific line item, sourced from the existing
+SalesReturnItem.invoice_item_id link. No new financial relationship
+was invented — both links already existed in the schema. The Product
+PDF gained the same nested financial-movements detail per transaction.
+
+One small, additive model change was required: SalesReturnItem had no
+salesReturn() relation (confirmed by direct inspection before adding
+it) — needed to eager-load return metadata (return_number, return_date,
+status) for the new return-detail method. This is a new relation
+method only; no existing behavior, column, or query changed.
+
+Files touched by this addendum:
+  app/Http/Controllers/ReportController.php (modified — customers()
+    made hierarchical, new customersPdf() action, productDetailData()
+    extended with payments/returns detail)
+  app/Services/CustomerStatementService.php (modified — returnedQuantityFor()
+    replaced by returnDetailsFor() [full detail, not just a count] plus
+    a new returnedQuantityFor() convenience wrapper; new
+    paymentsForInvoice())
+  app/Models/SalesReturnItem.php (modified — added the salesReturn()
+    relation only)
+  resources/js/Pages/Reports/Customers.vue (rewritten — hierarchical,
+    matching AreaDetail.vue's established pattern)
+  resources/js/Pages/Reports/ProductDetail.vue (modified — expandable
+    financial-movements row per transaction)
+  resources/views/pdf/report-product.blade.php (modified — nested
+    financial-movements detail per transaction)
+  resources/views/pdf/report-customers.blade.php (NEW — general
+    Customers report PDF, reusing the shared statement partial)
+  routes/web.php (modified — one new route, GET /reports/customers/pdf)
+  tests/Feature/CustomerReportAndProductMovementsTest.php (NEW — 19
+    tests covering both requirements plus Area/Sales-Rep regression
+    checks)
+
+Verified this session:
+  - npm run build: PASSED, 43 compiled assets.
+  - composer validate: PASSED. composer install: BLOCKED, same
+    Packagist-403 error as every prior phase — tests written but not
+    executed.
+  - Route/controller/param static check: PASSED (83/83 routes).
+  - Cost/profit leakage sweep re-run on every new/modified file: PASSED,
+    zero leaks, isAdmin()/isOwner() usage identical to the last
+    confirmed-clean state.
+  - Independent PHP simulation confirming multiple payments linked to
+    one invoice are returned as separate rows, never collapsed: PASSED.
+  - Real Chromium against the actual compiled CSS, the new hierarchical
+    Customers report, at 360/390/430/768/1280px: zero horizontal
+    overflow at every width.
+  - Area report, Sales Representative report, their PDFs, Owner/Manager
+    security, Dashboard cash-on-hand logic: all re-confirmed byte-
+    identical / behaviorally unchanged by direct inspection — not
+    assumed.
+
+====================================================
+FINAL RELEASE PACKAGE IDENTIFICATION
+====================================================
+
+ZIP filename:
+UTU-Management-v1.0.4-release.zip
+
+Size and SHA-256 for this build are reported in the assistant's
+delivery message for this turn — not duplicated here, since embedding
+the checksum of an archive inside the file it contains is not
+possible without the value going stale the moment it's written.

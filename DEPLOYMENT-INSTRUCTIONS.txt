@@ -1,0 +1,128 @@
+====================================================
+UTU Management v1.0.4 — Deployment Instructions
+====================================================
+
+Production path:
+/home/u860188292/domains/utuiq.com/public_html/syn
+
+IMPORTANT: this release assumes production is on v1.0.2 (the only
+CONFIRMED production baseline throughout this project). This is a
+complete overlay — it contains everything since v1.0.2, including all
+mobile-responsive and client-feedback work previously built as "v1.0.3"
+in earlier sessions. Do not apply any earlier "v1.0.3" ZIP first; this
+one alone brings production fully up to date from v1.0.2.
+
+No command in this file has been run against production. Everything
+below is the recommended sequence for you (or whoever has SSH access)
+to execute manually.
+
+----------------------------------------------------
+STEP 1 — REQUIRED: Backup
+----------------------------------------------------
+
+  ssh <user>@<host>
+  cd /home/u860188292/domains/utuiq.com/public_html/syn
+
+  mysqldump -u <db_user> -p <db_name> > /home/u860188292/backups/utu_pre_v1.0.4_db_$(date +%Y%m%d_%H%M).sql
+
+  mkdir -p /home/u860188292/backups/utu-v104-backup-$(date +%Y%m%d)
+  cp -r app resources routes composer.json public/build /home/u860188292/backups/utu-v104-backup-$(date +%Y%m%d)/
+
+(Given this release touches 52 files across many directories, a full
+copy of app/, resources/, and routes/ is simpler and safer here than
+enumerating every individual file — restore from this copy wholesale
+if needed; see ROLLBACK-INSTRUCTIONS.txt.)
+
+----------------------------------------------------
+STEP 2 — REQUIRED: Extract the package over the existing application
+----------------------------------------------------
+
+Extract UTU-Management-v1.0.4-release.zip into:
+  /home/u860188292/domains/utuiq.com/public_html/syn
+preserving directory structure. .env/vendor/storage are not part of
+this package and are never touched.
+
+----------------------------------------------------
+STEP 3 — Composer
+----------------------------------------------------
+
+No new dependency in this release. Nothing to run.
+
+----------------------------------------------------
+STEP 4 — REQUIRED, ONLY AFTER STEPS 1-2: Run the database migration
+----------------------------------------------------
+
+  cd /home/u860188292/domains/utuiq.com/public_html/syn
+  php artisan migrate --force
+
+Applies exactly 1 new migration:
+  2026_08_14_000001_add_settlement_discount_to_payments_table.php
+  — widens payments.method to include 'settlement' and 'discount'.
+  Additive only.
+
+(If production is confirmed to already be on a later state than
+v1.0.2 — e.g. if an earlier v1.0.3 ZIP actually was deployed — this
+migration may already be applied. `php artisan migrate --force` is
+safe to run either way; Laravel skips migrations already recorded as
+run.)
+
+----------------------------------------------------
+STEP 5 — REQUIRED: Clear and rebuild Laravel's caches
+----------------------------------------------------
+
+  php artisan optimize:clear
+  composer dump-autoload -o
+  php artisan config:cache
+  php artisan route:cache
+  php artisan view:cache
+
+----------------------------------------------------
+STEP 6 — Frontend assets
+----------------------------------------------------
+
+public/build/** in this package is already the compiled output (43
+files). No build step required on the server unless preferred:
+
+  npm install && npm run build   (optional)
+
+----------------------------------------------------
+STEP 7 — REQUIRED: Verify
+----------------------------------------------------
+
+As Owner or Manager:
+  - Open Reports -> Areas -> any area with customers. Confirm you see
+    each customer individually (not one aggregate row), and that
+    clicking a customer expands their full invoice/payment/return
+    statement with color coding.
+  - Open Reports -> Sales Representatives -> any rep with assigned
+    customers. Same check.
+  - Confirm the Area/Rep totals include Cash / Bank Transfer / Other /
+    Settlement / Discount / Actual Cash Received breakdown.
+  - Open both PDFs (Area, Sales Rep) and confirm they show the same
+    per-customer detail as the screen, not just a summary table.
+  - Open a Product report detail page and confirm Area/Rep/Discount/
+    Returned columns appear.
+  - Collections: create/edit a collection, confirm the Edit button
+    works and the Dashboard's cash figure updates correctly.
+
+As Manager specifically:
+  - Confirm no COGS/cost/profit field appears anywhere in the Area,
+    Sales Rep, or Product reports (only Owner should see them on the
+    Product report).
+
+On mobile:
+  - Area/Sales-Rep report customer cards stack correctly, tables
+    inside them scroll within their own container, no page-level
+    horizontal scroll.
+
+If any of the above fails, see ROLLBACK-INSTRUCTIONS.txt.
+
+----------------------------------------------------
+DO NOT RUN
+----------------------------------------------------
+
+  php artisan migrate:fresh
+  php artisan migrate:refresh
+  php artisan db:wipe
+  php artisan db:seed
+  composer update / composer require
